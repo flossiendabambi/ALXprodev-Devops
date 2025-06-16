@@ -1,0 +1,41 @@
+#!/bin/bash
+
+mkdir -p pokemon_data
+error_log="errors.txt"
+pokemon_list=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
+
+fetch_pokemon() {
+    local name=$1
+    local retries=3
+    local attempt=1
+
+    echo "Fetching data for $name..."
+
+    while [ $attempt -le $retries ]; do
+        response=$(curl -s -w "%{http_code}" -o "pokemon_data/${name}.json" "https://pokeapi.co/api/v2/pokemon/${name}")
+        status_code=${response: -3}
+
+        if [ "$status_code" = "200" ]; then
+            echo "Saved data to pokemon_data/${name}.json ✅"
+            return 0
+        else
+            echo "Attempt $attempt failed (HTTP $status_code) for $name"
+            sleep 1
+        fi
+
+        attempt=$((attempt + 1))
+    done
+
+    echo "❌ Failed to fetch data for $name after $retries attempts" | tee -a "$error_log"
+    rm -f "pokemon_data/${name}.json"
+}
+
+# Launch all fetches in background
+for name in "${pokemon_list[@]}"; do
+    fetch_pokemon "$name" &
+done
+
+# Wait for all background jobs to complete
+wait
+
+echo "All Pokémon data fetched."
