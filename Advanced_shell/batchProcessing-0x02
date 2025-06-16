@@ -1,26 +1,41 @@
 #!/bin/bash
 
-# Directory to store JSON files
+# Folder to store data
 mkdir -p pokemon_data
+error_log="errors.txt"
 
-# List of Pokémon to fetch
+# List of Pokémon
 pokemon_list=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
 
-# Loop through each Pokémon
-for name in "${pokemon_list[@]}"; do
-    echo "Fetching data for $name..."
-    
-    # Make API request
-    response=$(curl -s -w "%{http_code}" -o "pokemon_data/${name}.json" "https://pokeapi.co/api/v2/pokemon/${name}")
-    
-    # Check if request was successful
-    if [ "$response" = "200" ]; then
-        echo "Saved data to pokemon_data/${name}.json ✅"
-    else
-        echo "❌ Failed to fetch data for $name (HTTP $response)" >> errors.txt
-        rm -f "pokemon_data/${name}.json"
-    fi
+# Function to fetch a Pokémon with retry logic
+fetch_pokemon() {
+    local name=$1
+    local retries=3
+    local attempt=1
 
-    # Respect API limits
-    sleep 1
+    echo "Fetching data for $name..."
+
+    while [ $attempt -le $retries ]; do
+        response=$(curl -s -w "%{http_code}" -o "pokemon_data/${name}.json" "https://pokeapi.co/api/v2/pokemon/${name}")
+        status_code=${response: -3}
+
+        if [ "$status_code" = "200" ]; then
+            echo "Saved data to pokemon_data/${name}.json ✅"
+            return 0
+        else
+            echo "Attempt $attempt failed (HTTP $status_code) for $name"
+            sleep 1
+        fi
+
+        attempt=$((attempt + 1))
+    done
+
+    echo "❌ Failed to fetch data for $name after $retries attempts" | tee -a "$error_log"
+    rm -f "pokemon_data/${name}.json"  # Clean up partial file
+}
+
+# Loop through Pokémon list
+for name in "${pokemon_list[@]}"; do
+    fetch_pokemon "$name"
+    sleep 1  # Delay to avoid rate limits
 done
