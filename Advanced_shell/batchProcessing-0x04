@@ -4,6 +4,23 @@ mkdir -p pokemon_data
 error_log="errors.txt"
 pokemon_list=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
 
+# Store PIDs of background jobs
+pids=()
+
+# Function to kill all background jobs on exit or interruption
+cleanup() {
+    echo "Cleaning up background processes..."
+    for pid in "${pids[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid"
+            echo "Killed process $pid"
+        fi
+    done
+    exit 1
+}
+
+trap cleanup INT TERM
+
 fetch_pokemon() {
     local name=$1
     local retries=3
@@ -30,9 +47,10 @@ fetch_pokemon() {
     rm -f "pokemon_data/${name}.json"
 }
 
-# Launch all fetches in background
+# Launch all fetches in background and save their PIDs
 for name in "${pokemon_list[@]}"; do
     fetch_pokemon "$name" &
+    pids+=($!)
 done
 
 # Wait for all background jobs to complete
